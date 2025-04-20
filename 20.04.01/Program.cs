@@ -9,50 +9,17 @@ class CreditCard
     public double CreditLimit { get; set; }
     public double Balance { get; set; }
 
-    
-    public delegate void CardOperation(string message);
+    // Делегати для обробки подій
+    public delegate void CardEvent(string message);
 
-   
-    public void CheckBalance()
-    {
-        Console.WriteLine($"Balance: {Balance}");
-    }
+    // Події для різних ситуацій
+    public event CardEvent OnDeposit;
+    public event CardEvent OnWithdrawal;
+    public event CardEvent OnCreditUsageStarted;
+    public event CardEvent OnBalanceThresholdReached;
+    public event CardEvent OnPinChanged;
 
-  
-    public void Deposit(double amount)
-    {
-        if (amount > 0)
-        {
-            Balance += amount;
-            Console.WriteLine($"Deposited {amount} to the account. New balance: {Balance}");
-        }
-        else
-        {
-            Console.WriteLine("Amount to deposit must be positive.");
-        }
-    }
 
-    
-    public void Withdraw(double amount, CardOperation operation)
-    {
-        if (amount <= 0)
-        {
-            operation("Amount to withdraw must be positive.");
-            return;
-        }
-
-        if (amount > Balance)
-        {
-            operation("Insufficient funds.");
-        }
-        else
-        {
-            Balance -= amount;
-            operation($"Withdrew {amount} from the account. New balance: {Balance}");
-        }
-    }
-
-    
     public CreditCard(string cardNumber, string ownerName, string expiryDate, string pin, double creditLimit, double initialBalance)
     {
         CardNumber = cardNumber;
@@ -62,26 +29,78 @@ class CreditCard
         CreditLimit = creditLimit;
         Balance = initialBalance;
     }
+
+    
+    public void Deposit(double amount)
+    {
+        if (amount <= 0)
+        {
+            Console.WriteLine("Amount to deposit must be positive.");
+            return;
+        }
+
+        Balance += amount;
+        OnDeposit?.Invoke($"Deposited {amount}. New balance: {Balance}");
+    }
+
+    
+    public void Withdraw(double amount)
+    {
+        if (amount <= 0)
+        {
+            Console.WriteLine("Amount to withdraw must be positive.");
+            return;
+        }
+
+        if (Balance + CreditLimit < amount)
+        {
+            OnWithdrawal?.Invoke($"Insufficient funds to withdraw {amount}. Balance: {Balance}, Credit Limit: {CreditLimit}");
+        }
+        else
+        {
+            Balance -= amount;
+            if (Balance < 0)
+            {
+                OnCreditUsageStarted?.Invoke($"Credit usage started. Balance: {Balance}");
+            }
+            OnWithdrawal?.Invoke($"Withdrew {amount}. New balance: {Balance}");
+        }
+    }
+
+    public void ChangePin(string newPin)
+    {
+        PIN = newPin;
+        OnPinChanged?.Invoke($"PIN changed successfully. New PIN: {newPin}");
+    }
+
+    
+    public void CheckBalanceThreshold(double threshold)
+    {
+        if (Balance <= threshold)
+        {
+            OnBalanceThresholdReached?.Invoke($"Balance threshold reached. Current balance: {Balance}");
+        }
+    }
 }
 
 class Program
 {
     static void Main()
     {
-        
         CreditCard myCard = new CreditCard("1234 5678 9101 1121", "John Doe", "12/25", "1234", 5000, 1000);
 
-        
-        CreditCard.CardOperation operation = message => Console.WriteLine(message);
-
-        myCard.CheckBalance();
-
-     
-        myCard.Deposit(500);
-
-        myCard.Withdraw(200, operation);
+       
+        myCard.OnDeposit += message => Console.WriteLine(message);
+        myCard.OnWithdrawal += message => Console.WriteLine(message);
+        myCard.OnCreditUsageStarted += message => Console.WriteLine(message);
+        myCard.OnBalanceThresholdReached += message => Console.WriteLine(message);
+        myCard.OnPinChanged += message => Console.WriteLine(message);
 
        
-        myCard.Withdraw(1500, operation);
+        myCard.Deposit(500);
+        myCard.Withdraw(1500);
+        myCard.Withdraw(3500); 
+        myCard.CheckBalanceThreshold(500);
+        myCard.ChangePin("5678");
     }
 }
